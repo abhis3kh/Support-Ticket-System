@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const bcrypt = require('bcryptjs'); //for hashing the password
+const jwt = require('jsonwebtoken');
 // model for user
 const userModel = require('../models/userModel');
 // @desc : Register a new user
@@ -39,6 +40,7 @@ const registerUser = asyncHandler(async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        token: generateToken(user._id), //will generate a token and send as response as well.
       });
     } else {
       res.status(400);
@@ -50,10 +52,44 @@ const registerUser = asyncHandler(async (req, res) => {
 // @route : /api/users/login
 // @access : Public (no token needed)
 const loginUser = asyncHandler(async (req, res) => {
-  res.send('Login Route' + req.body);
+  // input data
+  let { email, password } = req.body;
+  // removing whitespaces
+  email = email.trim();
+  password = password.trim();
+  const user = await userModel.findOne({ email });
+  // check user & password match
+  if (user && (await bcrypt.compare(password, user.password))) {
+    //if the user is present and has matched with the password in theDB
+    res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      token: generateToken(user._id), //will generate a token and send as response as well.
+    });
+  } else {
+    res.status(401);
+    throw new Error('Invalid credential given');
+  }
 });
-
+// @desc : Get user data
+// @route : /api/users/me
+// @access : Private (token needed)
+const getMe = asyncHandler(async (req, res) => {
+  const user = {
+    id: req.user.id,
+    name: req.user.name,
+    email: req.user.email,
+  };
+  res.status(200).json(user);
+});
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SCRECT, {
+    expiresIn: '69d',
+  });
+};
 module.exports = {
   registerUser,
   loginUser,
+  getMe,
 };
